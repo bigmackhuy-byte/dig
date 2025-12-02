@@ -1,5 +1,5 @@
--- Fly GUI V5 - Ultimate Edition
--- Автор: XNEO | Полный функционал
+-- Fly GUI V6 - The Strongest Battleground Edition
+-- Автор: XNEO | Оптимизировано для TS Battlegrounds
 
 -- Сервисы
 local Players = game:GetService("Players")
@@ -25,35 +25,29 @@ local noclipEnabled = false
 local savedPosition = nil
 local upPressed = false
 local downPressed = false
+local flyConnection = nil
+local forceFieldConnection = nil
 
--- Эффекты
-local forceFieldPart = nil
-local flyEffect = nil
-local redirectionConnections = {}
-
--- Создание GUI
+-- GUI
 local ScreenGui = Instance.new("ScreenGui")
-local MainFrame = Instance.new("Frame")
-local EffectPart = Instance.new("Part")
-
--- Настройка GUI
-ScreenGui.Name = "FlyGUI"
+ScreenGui.Name = "FlyGUITS"
 ScreenGui.Parent = player:WaitForChild("PlayerGui")
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 ScreenGui.ResetOnSpawn = false
 
 -- Основной фрейм
+local MainFrame = Instance.new("Frame")
 MainFrame.Parent = ScreenGui
-MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
 MainFrame.BorderColor3 = Color3.fromRGB(0, 180, 255)
-MainFrame.BorderSizePixel = 3
-MainFrame.Position = UDim2.new(0.05, 0, 0.3, 0)
-MainFrame.Size = UDim2.new(0, 400, 0, 320)
+MainFrame.BorderSizePixel = 2
+MainFrame.Position = UDim2.new(0.02, 0, 0.3, 0)
+MainFrame.Size = UDim2.new(0, 350, 0, 280)
 MainFrame.Active = true
 MainFrame.Draggable = true
 MainFrame.ClipsDescendants = true
 
--- Функция создания кнопки
+-- Функция создания кнопок
 local function CreateButton(name, text, position, size, color)
     local button = Instance.new("TextButton")
     button.Name = name
@@ -62,24 +56,35 @@ local function CreateButton(name, text, position, size, color)
     button.BorderSizePixel = 0
     button.Position = position
     button.Size = size
-    button.Font = Enum.Font.SourceSansBold
+    button.Font = Enum.Font.GothamBold
     button.Text = text
     button.TextColor3 = Color3.fromRGB(255, 255, 255)
     button.TextSize = 14
-    button.AutoButtonColor = true
+    button.AutoButtonColor = false
     button.TextScaled = true
     
-    -- Эффект при наведении
+    local uiCorner = Instance.new("UICorner")
+    uiCorner.CornerRadius = UDim.new(0, 6)
+    uiCorner.Parent = button
+    
     button.MouseEnter:Connect(function()
-        TweenService:Create(button, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(
-            math.min(color.R * 255 + 40, 255),
-            math.min(color.G * 255 + 40, 255),
-            math.min(color.B * 255 + 40, 255)
+        TweenService:Create(button, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(
+            math.min(color.R * 255 + 30, 255),
+            math.min(color.G * 255 + 30, 255),
+            math.min(color.B * 255 + 30, 255)
         ) / 255}):Play()
     end)
     
     button.MouseLeave:Connect(function()
-        TweenService:Create(button, TweenInfo.new(0.2), {BackgroundColor3 = color}):Play()
+        TweenService:Create(button, TweenInfo.new(0.15), {BackgroundColor3 = color}):Play()
+    end)
+    
+    button.MouseButton1Down:Connect(function()
+        TweenService:Create(button, TweenInfo.new(0.1), {Size = size - UDim2.new(0, 4, 0, 4)}):Play()
+    end)
+    
+    button.MouseButton1Up:Connect(function()
+        TweenService:Create(button, TweenInfo.new(0.1), {Size = size}):Play()
     end)
     
     return button
@@ -88,57 +93,64 @@ end
 -- Заголовок
 local Title = Instance.new("TextLabel")
 Title.Parent = MainFrame
-Title.BackgroundColor3 = Color3.fromRGB(0, 140, 255)
+Title.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
 Title.BorderSizePixel = 0
 Title.Position = UDim2.new(0, 0, 0, 0)
 Title.Size = UDim2.new(1, 0, 0, 40)
-Title.Font = Enum.Font.SourceSansBold
-Title.Text = "🚀 FLY GUI ULTIMATE 🛡️"
+Title.Font = Enum.Font.GothamBold
+Title.Text = "⚔️ FLY GUI TS BATTLEGROUND ⚔️"
 Title.TextColor3 = Color3.fromRGB(255, 255, 255)
 Title.TextScaled = true
 
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 6)
+UICorner.Parent = MainFrame
+
 -- Создание кнопок
-local FlyButton = CreateButton("FlyButton", "🚀 ПОЛЕТ: ВЫКЛ", UDim2.new(0.05, 0, 0.15, 0), UDim2.new(0.4, 0, 0, 35), Color3.fromRGB(215, 50, 50))
+local FlyButton = CreateButton("FlyButton", "🚀 FLY: OFF", UDim2.new(0.05, 0, 0.16, 0), UDim2.new(0.4, 0, 0, 36), Color3.fromRGB(200, 50, 50))
 
-local UpButton = CreateButton("UpButton", "🔼 ВВЕРХ", UDim2.new(0.55, 0, 0.15, 0), UDim2.new(0.4, 0, 0, 35), Color3.fromRGB(50, 180, 50))
+local UpButton = CreateButton("UpButton", "↑ UP", UDim2.new(0.55, 0, 0.16, 0), UDim2.new(0.4, 0, 0, 36), Color3.fromRGB(50, 170, 50))
 
-local DownButton = CreateButton("DownButton", "🔽 ВНИЗ", UDim2.new(0.05, 0, 0.25, 0), UDim2.new(0.4, 0, 0, 35), Color3.fromRGB(200, 100, 50))
+local DownButton = CreateButton("DownButton", "↓ DOWN", UDim2.new(0.05, 0, 0.27, 0), UDim2.new(0.4, 0, 0, 36), Color3.fromRGB(220, 120, 50))
 
 local SpeedDisplay = Instance.new("TextLabel")
 SpeedDisplay.Name = "SpeedDisplay"
 SpeedDisplay.Parent = MainFrame
-SpeedDisplay.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+SpeedDisplay.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
 SpeedDisplay.BorderSizePixel = 0
-SpeedDisplay.Position = UDim2.new(0.55, 0, 0.25, 0)
-SpeedDisplay.Size = UDim2.new(0.4, 0, 0, 35)
-SpeedDisplay.Font = Enum.Font.SourceSansBold
-SpeedDisplay.Text = "СКОРОСТЬ: 1"
+SpeedDisplay.Position = UDim2.new(0.55, 0, 0.27, 0)
+SpeedDisplay.Size = UDim2.new(0.4, 0, 0, 36)
+SpeedDisplay.Font = Enum.Font.GothamBold
+SpeedDisplay.Text = "SPEED: 1"
 SpeedDisplay.TextColor3 = Color3.fromRGB(255, 255, 255)
 SpeedDisplay.TextScaled = true
+local SpeedCorner = Instance.new("UICorner")
+SpeedCorner.CornerRadius = UDim.new(0, 6)
+SpeedCorner.Parent = SpeedDisplay
 
-local IncreaseButton = CreateButton("IncreaseBtn", "+", UDim2.new(0.05, 0, 0.35, 0), UDim2.new(0.2, 0, 0, 35), Color3.fromRGB(50, 150, 50))
+local IncreaseButton = CreateButton("IncreaseBtn", "+", UDim2.new(0.05, 0, 0.38, 0), UDim2.new(0.2, 0, 0, 36), Color3.fromRGB(50, 150, 50))
 
-local DecreaseButton = CreateButton("DecreaseBtn", "-", UDim2.new(0.3, 0, 0.35, 0), UDim2.new(0.2, 0, 0, 35), Color3.fromRGB(180, 50, 50))
+local DecreaseButton = CreateButton("DecreaseBtn", "-", UDim2.new(0.3, 0, 0.38, 0), UDim2.new(0.2, 0, 0, 36), Color3.fromRGB(180, 50, 50))
 
-local ForceFieldButton = CreateButton("ForceFieldBtn", "🛡️ СИЛОВОЕ ПОЛЕ: ВЫКЛ", UDim2.new(0.55, 0, 0.35, 0), UDim2.new(0.4, 0, 0, 35), Color3.fromRGB(50, 100, 200))
+local ForceFieldButton = CreateButton("ForceFieldBtn", "🛡️ FORCE FIELD: OFF", UDim2.new(0.55, 0, 0.38, 0), UDim2.new(0.4, 0, 0, 36), Color3.fromRGB(50, 100, 200))
 
-local DamageRedirectButton = CreateButton("DamageRedirectBtn", "⚡ ПЕРЕНАПРЯВЛЕНИЕ: ВЫКЛ", UDim2.new(0.05, 0, 0.45, 0), UDim2.new(0.9, 0, 0, 35), Color3.fromRGB(200, 50, 150))
+local DamageRedirectButton = CreateButton("DamageRedirectBtn", "⚡ DMG REDIRECT: OFF", UDim2.new(0.05, 0, 0.49, 0), UDim2.new(0.9, 0, 0, 36), Color3.fromRGB(180, 50, 150))
 
-local NoclipButton = CreateButton("NoclipBtn", "🚫 НОКЛИП: ВЫКЛ", UDim2.new(0.05, 0, 0.55, 0), UDim2.new(0.9, 0, 0, 35), Color3.fromRGB(140, 50, 200))
+local NoclipButton = CreateButton("NoclipBtn", "🚫 NOCLIP: OFF", UDim2.new(0.05, 0, 0.6, 0), UDim2.new(0.9, 0, 0, 36), Color3.fromRGB(130, 50, 200))
 
-local SavePosButton = CreateButton("SavePosBtn", "💾 СОХРАНИТЬ ПОЗИЦИЮ", UDim2.new(0.05, 0, 0.65, 0), UDim2.new(0.4, 0, 0, 35), Color3.fromRGB(255, 165, 0))
+local SavePosButton = CreateButton("SavePosBtn", "💾 SAVE POSITION", UDim2.new(0.05, 0, 0.71, 0), UDim2.new(0.4, 0, 0, 36), Color3.fromRGB(255, 165, 0))
 
-local TeleportButton = CreateButton("TeleportBtn", "📍 ТЕЛЕПОРТ", UDim2.new(0.55, 0, 0.65, 0), UDim2.new(0.4, 0, 0, 35), Color3.fromRGB(0, 180, 255))
+local TeleportButton = CreateButton("TeleportBtn", "📍 TELEPORT", UDim2.new(0.55, 0, 0.71, 0), UDim2.new(0.4, 0, 0, 36), Color3.fromRGB(0, 160, 255))
 
 -- Кнопки управления окном
-local CloseButton = CreateButton("CloseBtn", "✖", UDim2.new(0.93, 0, 0.02, 0), UDim2.new(0.06, 0, 0.1, 0), Color3.fromRGB(215, 50, 50))
+local CloseButton = CreateButton("CloseBtn", "✖", UDim2.new(0.92, 0, 0.02, 0), UDim2.new(0.06, 0, 0.12, 0), Color3.fromRGB(200, 50, 50))
 
-local MinButton = CreateButton("MinBtn", "➖", UDim2.new(0.86, 0, 0.02, 0), UDim2.new(0.06, 0, 0.1, 0), Color3.fromRGB(255, 165, 0))
+local MinButton = CreateButton("MinBtn", "–", UDim2.new(0.84, 0, 0.02, 0), UDim2.new(0.06, 0, 0.12, 0), Color3.fromRGB(255, 165, 0))
 
--- Функция исправленного полета
+-- Переменные для полета
 local bodyGyro, bodyVelocity
-local flyConnection
 
+-- Исправленная функция полета для TS Battlegrounds
 local function ToggleFly()
     if not character or not humanoidRootPart then
         return
@@ -147,42 +159,26 @@ local function ToggleFly()
     flyEnabled = not flyEnabled
     
     if flyEnabled then
-        FlyButton.Text = "🚀 ПОЛЕТ: ВКЛ"
+        FlyButton.Text = "🚀 FLY: ON"
         FlyButton.BackgroundColor3 = Color3.fromRGB(50, 180, 50)
         
         humanoid.PlatformStand = true
         
-        -- Создаем объекты для полета
+        -- Создаем BodyGyro и BodyVelocity
         bodyGyro = Instance.new("BodyGyro")
         bodyVelocity = Instance.new("BodyVelocity")
         
         bodyGyro.Parent = humanoidRootPart
         bodyVelocity.Parent = humanoidRootPart
         
-        bodyGyro.MaxTorque = Vector3.new(400000, 400000, 400000)
-        bodyGyro.P = 100000
+        bodyGyro.MaxTorque = Vector3.new(40000, 40000, 40000)
+        bodyGyro.P = 10000
         bodyGyro.D = 1000
-        bodyVelocity.MaxForce = Vector3.new(400000, 400000, 400000)
+        bodyVelocity.MaxForce = Vector3.new(40000, 40000, 40000)
         bodyVelocity.Velocity = Vector3.new(0, 0, 0)
         
-        -- Создаем визуальный эффект полета
-        if not flyEffect then
-            flyEffect = Instance.new("ParticleEmitter")
-            flyEffect.Parent = humanoidRootPart
-            flyEffect.Color = ColorSequence.new(Color3.fromRGB(0, 150, 255))
-            flyEffect.LightEmission = 0.5
-            flyEffect.Size = NumberSequence.new(0.5)
-            flyEffect.Texture = "rbxassetid://242842579"
-            flyEffect.Transparency = NumberSequence.new(0.5)
-            flyEffect.Rate = 50
-            flyEffect.Lifetime = NumberRange.new(0.5)
-            flyEffect.Speed = NumberRange.new(5)
-            flyEffect.VelocitySpread = 180
-            flyEffect.Rotation = NumberRange.new(0, 360)
-        end
-        
-        -- Обработка полета с правильным направлением
-        flyConnection = RunService.Heartbeat:Connect(function(delta)
+        -- Соединение для полета
+        flyConnection = RunService.Heartbeat:Connect(function()
             if not character or not humanoidRootPart or not flyEnabled then
                 return
             end
@@ -190,10 +186,10 @@ local function ToggleFly()
             local camera = workspace.CurrentCamera
             local root = humanoidRootPart
             
-            -- Получаем ввод от игрока
+            -- Определяем направление движения
             local moveDirection = Vector3.new(0, 0, 0)
             
-            -- Проверяем клавиши WASD
+            -- Управление WASD
             if UserInputService:IsKeyDown(Enum.KeyCode.W) then
                 moveDirection = moveDirection + camera.CFrame.LookVector
             end
@@ -207,27 +203,23 @@ local function ToggleFly()
                 moveDirection = moveDirection + camera.CFrame.RightVector
             end
             
-            -- Нормализуем направление
-            if moveDirection.Magnitude > 0 then
-                moveDirection = moveDirection.Unit
-            end
-            
-            -- Добавляем вертикальное движение
+            -- Вертикальное управление
             if upPressed then
                 moveDirection = moveDirection + Vector3.new(0, 1, 0)
             elseif downPressed then
                 moveDirection = moveDirection + Vector3.new(0, -1, 0)
             end
             
-            -- Обновляем скорость и направление
+            -- Нормализация и применение скорости
             if moveDirection.Magnitude > 0 then
+                moveDirection = moveDirection.Unit
                 local velocity = moveDirection * flySpeed
                 bodyVelocity.Velocity = velocity
                 
                 -- Поворачиваем персонажа в направлении движения (кроме вертикального)
-                local horizontalDirection = Vector3.new(moveDirection.X, 0, moveDirection.Z)
-                if horizontalDirection.Magnitude > 0.1 then
-                    bodyGyro.CFrame = CFrame.new(root.Position, root.Position + horizontalDirection)
+                local horizontalDir = Vector3.new(moveDirection.X, 0, moveDirection.Z)
+                if horizontalDir.Magnitude > 0.1 then
+                    bodyGyro.CFrame = CFrame.new(root.Position, root.Position + horizontalDir)
                 end
             else
                 bodyVelocity.Velocity = Vector3.new(0, 0, 0)
@@ -235,8 +227,8 @@ local function ToggleFly()
         end)
         
     else
-        FlyButton.Text = "🚀 ПОЛЕТ: ВЫКЛ"
-        FlyButton.BackgroundColor3 = Color3.fromRGB(215, 50, 50)
+        FlyButton.Text = "🚀 FLY: OFF"
+        FlyButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
         
         humanoid.PlatformStand = false
         
@@ -255,56 +247,20 @@ local function ToggleFly()
             bodyVelocity = nil
         end
         
-        if flyEffect then
-            flyEffect:Destroy()
-            flyEffect = nil
-        end
-        
         upPressed = false
         downPressed = false
     end
 end
 
--- Функция силового поля
-local forceFieldConnection = nil
+-- Силовое поле для TS Battlegrounds
 local function ToggleForceField()
     forceFieldEnabled = not forceFieldEnabled
     
     if forceFieldEnabled then
-        ForceFieldButton.Text = "🛡️ СИЛОВОЕ ПОЛЕ: ВКЛ"
-        ForceFieldButton.BackgroundColor3 = Color3.fromRGB(0, 200, 255)
+        ForceFieldButton.Text = "🛡️ FORCE FIELD: ON"
+        ForceFieldButton.BackgroundColor3 = Color3.fromRGB(0, 180, 255)
         
-        -- Создаем визуальное силовое поле
-        forceFieldPart = Instance.new("Part")
-        forceFieldPart.Name = "ForceField"
-        forceFieldPart.Size = Vector3.new(15, 15, 15)
-        forceFieldPart.Shape = Enum.PartType.Ball
-        forceFieldPart.Transparency = 0.7
-        forceFieldPart.Material = EnumMaterial.Neon
-        forceFieldPart.Color = Color3.fromRGB(0, 150, 255)
-        forceFieldPart.CanCollide = false
-        forceFieldPart.Anchored = false
-        forceFieldPart.Parent = workspace
-        
-        local weld = Instance.new("Weld")
-        weld.Part0 = humanoidRootPart
-        weld.Part1 = forceFieldPart
-        weld.C0 = CFrame.new(0, 0, 0)
-        weld.Parent = forceFieldPart
-        
-        -- Эффект частиц
-        local particles = Instance.new("ParticleEmitter")
-        particles.Parent = forceFieldPart
-        particles.Color = ColorSequence.new(Color3.fromRGB(0, 100, 255))
-        particles.LightEmission = 0.8
-        particles.Size = NumberSequence.new(0.3)
-        particles.Texture = "rbxassetid://242842579"
-        particles.Transparency = NumberSequence.new(0.3)
-        particles.Rate = 100
-        particles.Lifetime = NumberRange.new(0.5)
-        particles.Speed = NumberRange.new(2)
-        
-        -- Отталкивание игроков
+        -- Создаем силовое поле
         forceFieldConnection = RunService.Heartbeat:Connect(function()
             if not character or not humanoidRootPart or not forceFieldEnabled then
                 return
@@ -312,27 +268,28 @@ local function ToggleForceField()
             
             local myPosition = humanoidRootPart.Position
             
+            -- Отталкиваем других игроков
             for _, otherPlayer in pairs(Players:GetPlayers()) do
                 if otherPlayer ~= player then
-                    local otherCharacter = otherPlayer.Character
-                    if otherCharacter then
-                        local otherHumanoid = otherCharacter:FindFirstChild("Humanoid")
-                        local otherRoot = otherCharacter:FindFirstChild("HumanoidRootPart")
+                    local otherChar = otherPlayer.Character
+                    if otherChar then
+                        local otherRoot = otherChar:FindFirstChild("HumanoidRootPart")
+                        local otherHum = otherChar:FindFirstChild("Humanoid")
                         
-                        if otherHumanoid and otherRoot and otherHumanoid.Health > 0 then
+                        if otherRoot and otherHum and otherHum.Health > 0 then
                             local distance = (myPosition - otherRoot.Position).Magnitude
                             
-                            -- Если игрок слишком близко, отталкиваем его
-                            if distance < 15 then
+                            -- Если игрок в радиусе 10 studs
+                            if distance < 10 then
                                 local direction = (otherRoot.Position - myPosition).Unit
-                                local force = direction * 100 * (1 - distance/15)
+                                local pushForce = 15
                                 
-                                -- Применяем импульс
-                                local bodyVelocity = Instance.new("BodyVelocity")
-                                bodyVelocity.Velocity = force
-                                bodyVelocity.MaxForce = Vector3.new(4000, 4000, 4000)
-                                bodyVelocity.Parent = otherRoot
-                                Debris:AddItem(bodyVelocity, 0.1)
+                                -- Применяем отталкивание
+                                local bv = Instance.new("BodyVelocity")
+                                bv.Velocity = direction * pushForce
+                                bv.MaxForce = Vector3.new(5000, 5000, 5000)
+                                bv.Parent = otherRoot
+                                Debris:AddItem(bv, 0.2)
                             end
                         end
                     end
@@ -341,157 +298,86 @@ local function ToggleForceField()
         end)
         
     else
-        ForceFieldButton.Text = "🛡️ СИЛОВОЕ ПОЛЕ: ВЫКЛ"
+        ForceFieldButton.Text = "🛡️ FORCE FIELD: OFF"
         ForceFieldButton.BackgroundColor3 = Color3.fromRGB(50, 100, 200)
         
         if forceFieldConnection then
             forceFieldConnection:Disconnect()
             forceFieldConnection = nil
         end
-        
-        if forceFieldPart then
-            forceFieldPart:Destroy()
-            forceFieldPart = nil
-        end
     end
 end
 
--- Функция перенаправления урона
+-- Перенаправление урона для TS Battlegrounds
 local function ToggleDamageRedirect()
     damageRedirectEnabled = not damageRedirectEnabled
     
     if damageRedirectEnabled then
-        DamageRedirectButton.Text = "⚡ ПЕРЕНАПРЯВЛЕНИЕ: ВКЛ"
-        DamageRedirectButton.BackgroundColor3 = Color3.fromRGB(255, 50, 150)
+        DamageRedirectButton.Text = "⚡ DMG REDIRECT: ON"
+        DamageRedirectButton.BackgroundColor3 = Color3.fromRGB(200, 60, 160)
         
         -- Защищаем от урона
-        humanoid.MaxHealth = math.huge
-        humanoid.Health = math.huge
+        spawn(function()
+            while damageRedirectEnabled and character do
+                humanoid.Health = humanoid.MaxHealth
+                task.wait(0.1)
+            end
+        end)
         
-        -- Создаем эффект защиты
-        local shieldEffect = Instance.new("ForceField")
-        shieldEffect.Visible = false
-        shieldEffect.Parent = character
-        
-        -- Перехватываем получение урона
-        for _, connection in pairs(redirectionConnections) do
-            connection:Disconnect()
-        end
-        redirectionConnections = {}
-        
-        -- Мониторинг урона
-        local function redirectDamage(damage)
-            if not damageRedirectEnabled or not character then return end
-            
-            -- Ищем ближайшего игрока
-            local closestPlayer = nil
-            local closestDistance = math.huge
-            local myPosition = humanoidRootPart.Position
-            
-            for _, otherPlayer in pairs(Players:GetPlayers()) do
-                if otherPlayer ~= player then
-                    local otherCharacter = otherPlayer.Character
-                    if otherCharacter then
-                        local otherRoot = otherCharacter:FindFirstChild("HumanoidRootPart")
-                        local otherHumanoid = otherCharacter:FindFirstChild("Humanoid")
-                        
-                        if otherRoot and otherHumanoid and otherHumanoid.Health > 0 then
-                            local distance = (myPosition - otherRoot.Position).Magnitude
-                            if distance < closestDistance then
-                                closestDistance = distance
-                                closestPlayer = otherPlayer
+        -- Отслеживаем получение урона
+        humanoid.HealthChanged:Connect(function()
+            if damageRedirectEnabled then
+                -- Ищем ближайшего игрока для перенаправления урона
+                local closestPlayer = nil
+                local closestDistance = math.huge
+                local myPos = humanoidRootPart.Position
+                
+                for _, otherPlayer in pairs(Players:GetPlayers()) do
+                    if otherPlayer ~= player then
+                        local otherChar = otherPlayer.Character
+                        if otherChar then
+                            local otherRoot = otherChar:FindFirstChild("HumanoidRootPart")
+                            if otherRoot then
+                                local distance = (myPos - otherRoot.Position).Magnitude
+                                if distance < closestDistance then
+                                    closestDistance = distance
+                                    closestPlayer = otherPlayer
+                                end
                             end
                         end
                     end
                 end
-            end
-            
-            -- Перенаправляем урон
-            if closestPlayer then
-                local otherCharacter = closestPlayer.Character
-                if otherCharacter then
-                    local otherHumanoid = otherCharacter:FindFirstChild("Humanoid")
-                    if otherHumanoid then
-                        -- Наносим урон другому игроку
-                        otherHumanoid:TakeDamage(damage)
-                        
-                        -- Визуальный эффект
-                        local beam = Instance.new("Beam")
-                        beam.Attachment0 = Instance.new("Attachment")
-                        beam.Attachment0.Parent = humanoidRootPart
-                        beam.Attachment1 = Instance.new("Attachment")
-                        beam.Attachment1.Parent = otherCharacter:FindFirstChild("HumanoidRootPart")
-                        beam.Color = ColorSequence.new(Color3.fromRGB(255, 0, 0))
-                        beam.Width0 = 0.5
-                        beam.Width1 = 0.5
-                        beam.Parent = workspace
-                        
-                        Debris:AddItem(beam.Attachment0, 0.5)
-                        Debris:AddItem(beam.Attachment1, 0.5)
-                        Debris:AddItem(beam, 0.5)
+                
+                -- Наносим урон ближайшему игроку
+                if closestPlayer then
+                    local otherChar = closestPlayer.Character
+                    if otherChar then
+                        local otherHum = otherChar:FindFirstChild("Humanoid")
+                        if otherHum then
+                            -- Наносим случайный урон (10-30)
+                            otherHum:TakeDamage(math.random(10, 30))
+                        end
                     end
                 end
             end
-        end
-        
-        -- Отслеживаем получение урона
-        table.insert(redirectionConnections, humanoid.HealthChanged:Connect(function(health)
-            if health < humanoid.MaxHealth then
-                local damage = humanoid.MaxHealth - health
-                humanoid.Health = humanoid.MaxHealth
-                redirectDamage(damage)
-            end
-        end))
-        
-        table.insert(redirectionConnections, humanoid.Touched:Connect(function(part)
-            if part:IsA("BasePart") and part.Parent ~= character then
-                -- Проверяем, может ли часть наносить урон
-                local humanoidFromPart = part.Parent:FindFirstChild("Humanoid")
-                if not humanoidFromPart then
-                    humanoidFromPart = part.Parent.Parent:FindFirstChild("Humanoid")
-                end
-                
-                if humanoidFromPart then
-                    redirectDamage(10) -- Стандартный урон при касании
-                end
-            end
-        end))
+        end)
         
     else
-        DamageRedirectButton.Text = "⚡ ПЕРЕНАПРЯВЛЕНИЕ: ВЫКЛ"
-        DamageRedirectButton.BackgroundColor3 = Color3.fromRGB(200, 50, 150)
-        
-        -- Восстанавливаем нормальное здоровье
-        humanoid.MaxHealth = 100
-        humanoid.Health = 100
-        
-        -- Отключаем все соединения
-        for _, connection in pairs(redirectionConnections) do
-            connection:Disconnect()
-        end
-        redirectionConnections = {}
+        DamageRedirectButton.Text = "⚡ DMG REDIRECT: OFF"
+        DamageRedirectButton.BackgroundColor3 = Color3.fromRGB(180, 50, 150)
     end
 end
 
--- Функция ноклипа
+-- Ноклип
 local function ToggleNoclip()
     noclipEnabled = not noclipEnabled
     
     if noclipEnabled then
-        NoclipButton.Text = "🚫 НОКЛИП: ВКЛ"
-        NoclipButton.BackgroundColor3 = Color3.fromRGB(180, 80, 255)
+        NoclipButton.Text = "🚫 NOCLIP: ON"
+        NoclipButton.BackgroundColor3 = Color3.fromRGB(170, 70, 220)
     else
-        NoclipButton.Text = "🚫 НОКЛИП: ВЫКЛ"
-        NoclipButton.BackgroundColor3 = Color3.fromRGB(140, 50, 200)
-        
-        -- Восстанавливаем коллизии
-        if character then
-            for _, part in pairs(character:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    part.CanCollide = true
-                end
-            end
-        end
+        NoclipButton.Text = "🚫 NOCLIP: OFF"
+        NoclipButton.BackgroundColor3 = Color3.fromRGB(130, 50, 200)
     end
 end
 
@@ -526,14 +412,14 @@ IncreaseButton.MouseButton1Click:Connect(function()
     displaySpeed = displaySpeed + 1
     if displaySpeed > 10 then displaySpeed = 10 end
     flySpeed = displaySpeed * 10
-    SpeedDisplay.Text = "СКОРОСТЬ: " .. displaySpeed
+    SpeedDisplay.Text = "SPEED: " .. displaySpeed
 end)
 
 DecreaseButton.MouseButton1Click:Connect(function()
     displaySpeed = displaySpeed - 1
     if displaySpeed < 1 then displaySpeed = 1 end
     flySpeed = displaySpeed * 10
-    SpeedDisplay.Text = "СКОРОСТЬ: " .. displaySpeed
+    SpeedDisplay.Text = "SPEED: " .. displaySpeed
 end)
 
 ForceFieldButton.MouseButton1Click:Connect(ToggleForceField)
@@ -543,31 +429,22 @@ NoclipButton.MouseButton1Click:Connect(ToggleNoclip)
 SavePosButton.MouseButton1Click:Connect(function()
     if character and humanoidRootPart then
         savedPosition = humanoidRootPart.CFrame
-        SavePosButton.Text = "✓ СОХРАНЕНО!"
-        
+        SavePosButton.Text = "✓ SAVED!"
         task.wait(2)
-        if SavePosButton then
-            SavePosButton.Text = "💾 СОХРАНИТЬ ПОЗИЦИЮ"
-        end
+        SavePosButton.Text = "💾 SAVE POSITION"
     end
 end)
 
 TeleportButton.MouseButton1Click:Connect(function()
     if savedPosition and character and humanoidRootPart then
         humanoidRootPart.CFrame = savedPosition
-        TeleportButton.Text = "✓ ТЕЛЕПОРТИРОВАН!"
-        
+        TeleportButton.Text = "✓ TELEPORTED!"
         task.wait(2)
-        if TeleportButton then
-            TeleportButton.Text = "📍 ТЕЛЕПОРТ"
-        end
+        TeleportButton.Text = "📍 TELEPORT"
     else
-        TeleportButton.Text = "НЕТ СОХРАНЕННОЙ ПОЗИЦИИ!"
-        
+        TeleportButton.Text = "NO SAVED POS!"
         task.wait(2)
-        if TeleportButton then
-            TeleportButton.Text = "📍 ТЕЛЕПОРТ"
-        end
+        TeleportButton.Text = "📍 TELEPORT"
     end
 end)
 
@@ -577,7 +454,7 @@ end)
 
 MinButton.MouseButton1Click:Connect(function()
     MainFrame.Visible = not MainFrame.Visible
-    MinButton.Text = MainFrame.Visible and "➖" or "➕"
+    MinButton.Text = MainFrame.Visible and "–" or "+"
 end)
 
 -- Обработка ноклипа
@@ -601,12 +478,12 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
         displaySpeed = displaySpeed + 1
         if displaySpeed > 10 then displaySpeed = 10 end
         flySpeed = displaySpeed * 10
-        SpeedDisplay.Text = "СКОРОСТЬ: " .. displaySpeed
+        SpeedDisplay.Text = "SPEED: " .. displaySpeed
     elseif input.KeyCode == Enum.KeyCode.Q then
         displaySpeed = displaySpeed - 1
         if displaySpeed < 1 then displaySpeed = 1 end
         flySpeed = displaySpeed * 10
-        SpeedDisplay.Text = "СКОРОСТЬ: " .. displaySpeed
+        SpeedDisplay.Text = "SPEED: " .. displaySpeed
     elseif input.KeyCode == Enum.KeyCode.R then
         ToggleForceField()
     elseif input.KeyCode == Enum.KeyCode.T then
@@ -632,52 +509,35 @@ UserInputService.InputEnded:Connect(function(input)
     end
 end)
 
--- Обработка смерти персонажа
-local function OnCharacterDeath()
-    -- Отключаем полет
-    if flyEnabled then
-        ToggleFly()
-    end
-    
-    -- Отключаем силовое поле
-    if forceFieldEnabled then
-        ToggleForceField()
-    end
-    
-    -- Отключаем перенаправление урона
-    if damageRedirectEnabled then
-        ToggleDamageRedirect()
-    end
-    
-    -- Отключаем ноклип
-    if noclipEnabled then
-        ToggleNoclip()
-    end
-end
+-- Обработка смерти
+humanoid.Died:Connect(function()
+    if flyEnabled then ToggleFly() end
+    if forceFieldEnabled then ToggleForceField() end
+    if damageRedirectEnabled then ToggleDamageRedirect() end
+    if noclipEnabled then ToggleNoclip() end
+end)
 
-humanoid.Died:Connect(OnCharacterDeath)
-
--- Обработка смены персонажа
+-- Обработка нового персонажа
 player.CharacterAdded:Connect(function(newChar)
     character = newChar
     humanoid = newChar:WaitForChild("Humanoid")
     humanoidRootPart = newChar:WaitForChild("HumanoidRootPart")
     
-    humanoid.Died:Connect(OnCharacterDeath)
+    -- Восстанавливаем функции при респавне
+    task.wait(1)
+    if flyEnabled then
+        FlyButton.Text = "🚀 FLY: OFF"
+        FlyButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+        flyEnabled = false
+    end
 end)
 
--- Уведомление о загрузке
+-- Уведомление
+task.wait(2)
 StarterGui:SetCore("SendNotification", {
-    Title = "FLY GUI ULTIMATE",
-    Text = "Полный функционал активирован!\nF - полет, E/Q - скорость\nR - силовое поле, T - перенаправление\nY - ноклип, Space/Ctrl - высота",
-    Duration = 7,
-    Icon = "rbxassetid://4483345998"
+    Title = "FLY GUI TS BATTLEGROUND",
+    Text = "Successfully loaded!\nF - Fly, E/Q - Speed\nR - Force Field, T - Damage Redirect",
+    Duration = 5
 })
 
-print("✅ Fly GUI Ultimate успешно загружен!")
-print("📋 Функции:")
-print("   🚀 Полет с правильным направлением")
-print("   🛡️ Силовое поле (отталкивает игроков)")
-print("   ⚡ Перенаправление урона (на ближайшего игрока)")
-print("   🚫 Ноклип")
-print("   💾 Сохранение/телепортация позиций")
+print("✅ Fly GUI for The Strongest Battleground loaded!")
