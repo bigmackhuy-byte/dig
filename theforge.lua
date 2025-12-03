@@ -1,4 +1,4 @@
--- AFK Mining Bot for The Forge (Beta)
+-- AFK Mining Bot for The Forge (Beta) - FIXED VERSION
 -- Автор: XNEO | Автоматический фарм ресурсов
 
 local Players = game:GetService("Players")
@@ -7,82 +7,64 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local StarterGui = game:GetService("StarterGui")
+local CoreGui = game:GetService("CoreGui")
 
 -- Локальный игрок
 local player = Players.LocalPlayer
-local character = player.Character or player.CharacterAdded:Wait()
-local humanoid = character:WaitForChild("Humanoid")
-local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
+local character = player.Character
+local humanoid = character and character:FindFirstChild("Humanoid")
+local humanoidRootPart = character and character:FindFirstChild("HumanoidRootPart")
+
+-- Ожидаем персонажа если его нет
+if not character then
+    character = player.CharacterAdded:Wait()
+    humanoid = character:WaitForChild("Humanoid")
+    humanoidRootPart = character:WaitForChild("HumanoidRootPart")
+end
 
 -- Переменные
 local miningEnabled = false
 local selectedOres = {}
 local miningRange = 25
-local miningSpeed = 2
 local teleportToOres = true
 local closestOre = nil
 local lastOrePosition = nil
 local blacklistedOres = {}
-local oreBlacklistTime = 30 -- Секунд в черном списке
-
--- Обычные руды в The Forge
-local defaultOres = {
-    "Stone",
-    "Coal",
-    "Copper",
-    "Iron",
-    "Gold",
-    "Diamond",
-    "Emerald",
-    "Ruby",
-    "Sapphire",
-    "Mithril",
-    "Adamantite",
-    "Titanium",
-    "Obsidian",
-    "Crystal"
-}
+local oreBlacklistTime = 30
+local autoClick = false
 
 -- GUI
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "ForgeMiningBot"
-ScreenGui.Parent = player:WaitForChild("PlayerGui")
+ScreenGui.Name = "ForgeMiningBot_FIXED"
+ScreenGui.Parent = CoreGui -- Используем CoreGui для надежности
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 ScreenGui.ResetOnSpawn = false
 
 -- Основной фрейм
 local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
 MainFrame.Parent = ScreenGui
 MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
 MainFrame.BorderColor3 = Color3.fromRGB(200, 100, 0)
-MainFrame.BorderSizePixel = 3
-MainFrame.Position = UDim2.new(0.02, 0, 0.1, 0)
-MainFrame.Size = UDim2.new(0, 350, 0, 450)
+MainFrame.BorderSizePixel = 2
+MainFrame.Position = UDim2.new(0.1, 0, 0.1, 0)
+MainFrame.Size = UDim2.new(0, 300, 0, 400)
 MainFrame.Active = true
 MainFrame.Draggable = true
-MainFrame.ClipsDescendants = true
+MainFrame.Selectable = true
 
--- Скругление углов
-local UICorner = Instance.new("UICorner")
-UICorner.CornerRadius = UDim.new(0, 8)
-UICorner.Parent = MainFrame
-
--- Заголовок
-local Title = Instance.new("TextLabel")
-Title.Parent = MainFrame
-Title.BackgroundColor3 = Color3.fromRGB(200, 100, 0)
-Title.BackgroundTransparency = 0
-Title.BorderSizePixel = 0
-Title.Position = UDim2.new(0, 0, 0, 0)
-Title.Size = UDim2.new(1, 0, 0, 40)
-Title.Font = Enum.Font.GothamBold
-Title.Text = "⚒️ FORGE MINING BOT ⚒️"
-Title.TextColor3 = Color3.fromRGB(255, 255, 255)
-Title.TextSize = 16
-
-local TitleCorner = Instance.new("UICorner")
-TitleCorner.CornerRadius = UDim.new(0, 8)
-TitleCorner.Parent = Title
+-- Тень
+local Shadow = Instance.new("ImageLabel")
+Shadow.Name = "Shadow"
+Shadow.Parent = MainFrame
+Shadow.BackgroundTransparency = 1
+Shadow.Size = UDim2.new(1, 10, 1, 10)
+Shadow.Position = UDim2.new(0, -5, 0, -5)
+Shadow.Image = "rbxassetid://5554236805"
+Shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
+Shadow.ImageTransparency = 0.8
+Shadow.ScaleType = Enum.ScaleType.Slice
+Shadow.SliceCenter = Rect.new(10, 10, 118, 118)
 
 -- Функция создания кнопок
 local function CreateButton(name, text, position, size, color)
@@ -93,310 +75,335 @@ local function CreateButton(name, text, position, size, color)
     button.BorderSizePixel = 0
     button.Position = position
     button.Size = size
-    button.Font = Enum.Font.Gotham
+    button.Font = Enum.Font.SourceSansBold
     button.Text = text
     button.TextColor3 = Color3.fromRGB(255, 255, 255)
-    button.TextSize = 13
+    button.TextSize = 14
     button.AutoButtonColor = false
     button.TextScaled = false
+    button.ClipsDescendants = true
     
-    local uiCorner = Instance.new("UICorner")
-    uiCorner.CornerRadius = UDim.new(0, 6)
-    uiCorner.Parent = button
+    -- Закругление
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 6)
+    corner.Parent = button
     
-    local textConstraint = Instance.new("UITextSizeConstraint")
-    textConstraint.Parent = button
-    textConstraint.MaxTextSize = 13
+    -- Тень кнопки
+    local buttonShadow = Instance.new("Frame")
+    buttonShadow.Name = "Shadow"
+    buttonShadow.Parent = button
+    buttonShadow.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    buttonShadow.BackgroundTransparency = 0.7
+    buttonShadow.Size = UDim2.new(1, 4, 1, 4)
+    buttonShadow.Position = UDim2.new(0, -2, 0, -2)
+    buttonShadow.ZIndex = -1
     
-    -- Эффекты при наведении
+    local shadowCorner = Instance.new("UICorner")
+    shadowCorner.CornerRadius = UDim.new(0, 8)
+    shadowCorner.Parent = buttonShadow
+    
+    -- Эффекты кнопки
     button.MouseEnter:Connect(function()
-        TweenService:Create(button, TweenInfo.new(0.15), {
+        TweenService:Create(button, TweenInfo.new(0.2), {
             BackgroundColor3 = Color3.fromRGB(
-                math.min(color.R * 255 + 40, 255),
-                math.min(color.G * 255 + 40, 255),
-                math.min(color.B * 255 + 40, 255)
-            ) / 255
+                math.min(color.R * 255 + 30, 255),
+                math.min(color.G * 255 + 30, 255),
+                math.min(color.B * 255 + 30, 255)
+            ) / 255,
+            Size = size + UDim2.new(0, 2, 0, 2)
         }):Play()
     end)
     
     button.MouseLeave:Connect(function()
-        TweenService:Create(button, TweenInfo.new(0.15), {
-            BackgroundColor3 = color
+        TweenService:Create(button, TweenInfo.new(0.2), {
+            BackgroundColor3 = color,
+            Size = size
+        }):Play()
+    end)
+    
+    button.MouseButton1Down:Connect(function()
+        TweenService:Create(button, TweenInfo.new(0.1), {
+            BackgroundColor3 = Color3.fromRGB(
+                math.max(color.R * 255 - 40, 0),
+                math.max(color.G * 255 - 40, 0),
+                math.max(color.B * 255 - 40, 0)
+            ) / 255,
+            Size = size - UDim2.new(0, 2, 0, 2)
+        }):Play()
+    end)
+    
+    button.MouseButton1Up:Connect(function()
+        TweenService:Create(button, TweenInfo.new(0.1), {
+            BackgroundColor3 = color,
+            Size = size
         }):Play()
     end)
     
     return button
 end
 
--- Панель статуса
+-- Заголовок
+local Title = Instance.new("TextLabel")
+Title.Name = "Title"
+Title.Parent = MainFrame
+Title.BackgroundColor3 = Color3.fromRGB(200, 100, 0)
+Title.BackgroundTransparency = 0
+Title.BorderSizePixel = 0
+Title.Position = UDim2.new(0, 0, 0, 0)
+Title.Size = UDim2.new(1, 0, 0, 40)
+Title.Font = Enum.Font.SourceSansBold
+Title.Text = "⚒️ FORGE MINING BOT ⚒️"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.TextSize = 16
+
+-- Закругление заголовка
+local titleCorner = Instance.new("UICorner")
+titleCorner.CornerRadius = UDim.new(0, 6)
+titleCorner.Parent = Title
+
+-- Статус бар
+local StatusBar = Instance.new("Frame")
+StatusBar.Name = "StatusBar"
+StatusBar.Parent = MainFrame
+StatusBar.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+StatusBar.BorderSizePixel = 0
+StatusBar.Position = UDim2.new(0.05, 0, 0.12, 0)
+StatusBar.Size = UDim2.new(0.9, 0, 0, 30)
+
+local statusCorner = Instance.new("UICorner")
+statusCorner.CornerRadius = UDim.new(0, 6)
+statusCorner.Parent = StatusBar
+
 local StatusLabel = Instance.new("TextLabel")
 StatusLabel.Name = "StatusLabel"
-StatusLabel.Parent = MainFrame
-StatusLabel.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
-StatusLabel.BorderSizePixel = 0
-StatusLabel.Position = UDim2.new(0.05, 0, 0.11, 0)
-StatusLabel.Size = UDim2.new(0.9, 0, 0, 30)
-StatusLabel.Font = Enum.Font.Gotham
-StatusLabel.Text = "Статус: Остановлен"
+StatusLabel.Parent = StatusBar
+StatusLabel.BackgroundTransparency = 1
+StatusLabel.Size = UDim2.new(1, 0, 1, 0)
+StatusLabel.Font = Enum.Font.SourceSans
+StatusLabel.Text = "Статус: Ожидание"
 StatusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 StatusLabel.TextSize = 14
 
-local StatusCorner = Instance.new("UICorner")
-StatusCorner.CornerRadius = UDim.new(0, 6)
-StatusCorner.Parent = StatusLabel
-
--- Кнопка старт/стоп
-local StartButton = CreateButton("StartButton", "▶️ НАЧАТЬ ФАРМ", UDim2.new(0.05, 0, 0.19, 0), UDim2.new(0.9, 0, 0, 40), Color3.fromRGB(0, 180, 0))
+-- Кнопки управления
+local StartButton = CreateButton("StartButton", "▶️ НАЧАТЬ ФАРМ", UDim2.new(0.05, 0, 0.22, 0), UDim2.new(0.9, 0, 0, 40), Color3.fromRGB(0, 180, 0))
 
 -- Панель выбора руд
-local OresFrame = Instance.new("Frame")
+local OresFrame = Instance.new("ScrollingFrame")
 OresFrame.Name = "OresFrame"
 OresFrame.Parent = MainFrame
 OresFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
 OresFrame.BorderSizePixel = 0
-OresFrame.Position = UDim2.new(0.05, 0, 0.32, 0)
-OresFrame.Size = UDim2.new(0.9, 0, 0, 150)
-OresFrame.ClipsDescendants = true
+OresFrame.Position = UDim2.new(0.05, 0, 0.35, 0)
+OresFrame.Size = UDim2.new(0.9, 0, 0, 120)
+OresFrame.CanvasSize = UDim2.new(0, 0, 2, 0)
+OresFrame.ScrollBarThickness = 6
 
-local OresCorner = Instance.new("UICorner")
-OresCorner.CornerRadius = UDim.new(0, 6)
-OresCorner.Parent = OresFrame
+local oresCorner = Instance.new("UICorner")
+oresCorner.CornerRadius = UDim.new(0, 6)
+oresCorner.Parent = OresFrame
 
-local OresScroll = Instance.new("ScrollingFrame")
-OresScroll.Name = "OresScroll"
-OresScroll.Parent = OresFrame
-OresScroll.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
-OresScroll.BackgroundTransparency = 1
-OresScroll.BorderSizePixel = 0
-OresScroll.Position = UDim2.new(0, 5, 0, 5)
-OresScroll.Size = UDim2.new(1, -10, 1, -10)
-OresScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
-OresScroll.ScrollBarThickness = 6
+-- Список руд
+local oreNames = {
+    "Stone", "Coal", "Copper", "Iron", "Gold", 
+    "Diamond", "Emerald", "Ruby", "Sapphire", "Mithril",
+    "Adamantite", "Titanium", "Obsidian", "Crystal",
+    "Rock", "Ore", "Mineral", "Gem"
+}
 
-local OresLayout = Instance.new("UIListLayout")
-OresLayout.Parent = OresScroll
-OresLayout.SortOrder = Enum.SortOrder.LayoutOrder
-OresLayout.Padding = UDim.new(0, 5)
-
--- Кнопки выбора всех/очистки
-local SelectAllButton = CreateButton("SelectAllButton", "✓ ВЫБРАТЬ ВСЕ", UDim2.new(0.05, 0, 0.72, 0), UDim2.new(0.44, 0, 0, 30), Color3.fromRGB(50, 120, 200))
-
-local ClearSelectionButton = CreateButton("ClearSelectionButton", "✗ ОЧИСТИТЬ ВЫБОР", UDim2.new(0.51, 0, 0.72, 0), UDim2.new(0.44, 0, 0, 30), Color3.fromRGB(200, 50, 50))
-
--- Настройки
-local TeleportToggle = CreateButton("TeleportToggle", "⚡ ТЕЛЕПОРТ: ВКЛ", UDim2.new(0.05, 0, 0.8, 0), UDim2.new(0.44, 0, 0, 30), Color3.fromRGB(100, 50, 200))
-
-local RangeDisplay = Instance.new("TextLabel")
-RangeDisplay.Name = "RangeDisplay"
-RangeDisplay.Parent = MainFrame
-RangeDisplay.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
-RangeDisplay.BorderSizePixel = 0
-RangeDisplay.Position = UDim2.new(0.51, 0, 0.8, 0)
-RangeDisplay.Size = UDim2.new(0.44, 0, 0, 30)
-RangeDisplay.Font = Enum.Font.Gotham
-RangeDisplay.Text = "ДИСТАНЦИЯ: 25"
-RangeDisplay.TextColor3 = Color3.fromRGB(255, 255, 255)
-RangeDisplay.TextSize = 13
-
-local RangeCorner = Instance.new("UICorner")
-RangeCorner.CornerRadius = UDim.new(0, 6)
-RangeCorner.Parent = RangeDisplay
-
-local IncreaseRangeButton = CreateButton("IncreaseRangeBtn", "+", UDim2.new(0.05, 0, 0.87, 0), UDim2.new(0.2, 0, 0, 30), Color3.fromRGB(50, 150, 50))
-
-local DecreaseRangeButton = CreateButton("DecreaseRangeBtn", "-", UDim2.new(0.3, 0, 0.87, 0), UDim2.new(0.2, 0, 0, 30), Color3.fromRGB(200, 50, 50))
-
-local BlacklistButton = CreateButton("BlacklistButton", "🚫 ЧЕРНЫЙ СПИСОК", UDim2.new(0.55, 0, 0.87, 0), UDim2.new(0.4, 0, 0, 30), Color3.fromRGB(255, 100, 0))
-
--- Кнопки управления окном
-local CloseButton = CreateButton("CloseBtn", "✖", UDim2.new(0.92, 0, 0.02, 0), UDim2.new(0.06, 0, 0.1, 0), Color3.fromRGB(200, 50, 50))
-
-local MinButton = CreateButton("MinBtn", "–", UDim2.new(0.84, 0, 0.02, 0), UDim2.new(0.06, 0, 0.1, 0), Color3.fromRGB(255, 165, 0))
-
--- Создаем чекбоксы для каждой руды
+-- Создаем чекбоксы для руд
 local oreCheckboxes = {}
-local function CreateOreCheckbox(oreName)
+local function CreateOreCheckbox(oreName, index)
+    local yPos = ((index-1) * 25) / OresFrame.CanvasSize.Y.Scale
+    
     local checkboxFrame = Instance.new("Frame")
-    checkboxFrame.Name = oreName .. "Checkbox"
+    checkboxFrame.Name = oreName .. "Frame"
     checkboxFrame.BackgroundTransparency = 1
-    checkboxFrame.Size = UDim2.new(1, 0, 0, 25)
+    checkboxFrame.Size = UDim2.new(1, -10, 0, 20)
+    checkboxFrame.Position = UDim2.new(0, 5, 0, 5 + ((index-1) * 25))
+    checkboxFrame.Parent = OresFrame
     
-    local checkboxButton = Instance.new("TextButton")
-    checkboxButton.Name = "CheckboxButton"
-    checkboxButton.Parent = checkboxFrame
-    checkboxButton.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
-    checkboxButton.BorderSizePixel = 0
-    checkboxButton.Position = UDim2.new(0, 0, 0, 0)
-    checkboxButton.Size = UDim2.new(1, 0, 1, 0)
-    checkboxButton.Font = Enum.Font.Gotham
-    checkboxButton.Text = "□ " .. oreName
-    checkboxButton.TextColor3 = Color3.fromRGB(200, 200, 200)
-    checkboxButton.TextSize = 12
-    checkboxButton.TextXAlignment = Enum.TextXAlignment.Left
-    checkboxButton.TextPadding = Instance.new("UIPadding")
-    checkboxButton.TextPadding.PaddingLeft = UDim.new(0, 10)
+    local checkbox = Instance.new("TextButton")
+    checkbox.Name = oreName .. "Checkbox"
+    checkbox.Parent = checkboxFrame
+    checkbox.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
+    checkbox.BorderSizePixel = 0
+    checkbox.Size = UDim2.new(1, 0, 1, 0)
+    checkbox.Font = Enum.Font.SourceSans
+    checkbox.Text = "□ " .. oreName
+    checkbox.TextColor3 = Color3.fromRGB(200, 200, 200)
+    checkbox.TextSize = 12
+    checkbox.TextXAlignment = Enum.TextXAlignment.Left
+    checkbox.TextPadding = Instance.new("UIPadding")
+    checkbox.TextPadding.PaddingLeft = UDim.new(0, 10)
     
-    local checkboxCorner = Instance.new("UICorner")
-    checkboxCorner.CornerRadius = UDim.new(0, 4)
-    checkboxCorner.Parent = checkboxButton
+    local checkCorner = Instance.new("UICorner")
+    checkCorner.CornerRadius = UDim.new(0, 4)
+    checkCorner.Parent = checkbox
     
-    checkboxButton.MouseButton1Click:Connect(function()
+    -- Обработчик клика
+    checkbox.MouseButton1Click:Connect(function()
         if selectedOres[oreName] then
             selectedOres[oreName] = nil
-            checkboxButton.Text = "□ " .. oreName
-            checkboxButton.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
+            checkbox.Text = "□ " .. oreName
+            checkbox.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
         else
             selectedOres[oreName] = true
-            checkboxButton.Text = "✓ " .. oreName
-            checkboxButton.BackgroundColor3 = Color3.fromRGB(80, 120, 80)
+            checkbox.Text = "✓ " .. oreName
+            checkbox.BackgroundColor3 = Color3.fromRGB(80, 120, 80)
         end
     end)
     
-    oreCheckboxes[oreName] = checkboxButton
-    checkboxFrame.Parent = OresScroll
-    
-    -- Обновляем размер скролла
-    OresScroll.CanvasSize = UDim2.new(0, 0, 0, OresLayout.AbsoluteContentSize.Y)
+    oreCheckboxes[oreName] = checkbox
 end
 
--- Создаем чекбоксы для всех руд по умолчанию
-for _, oreName in ipairs(defaultOres) do
-    CreateOreCheckbox(oreName)
+-- Создаем все чекбоксы
+for i, oreName in ipairs(oreNames) do
+    CreateOreCheckbox(oreName, i)
 end
 
--- Функция поиска ближайшей руды
+-- Кнопки выбора
+local SelectAllButton = CreateButton("SelectAllButton", "✓ ВЫБРАТЬ ВСЕ", UDim2.new(0.05, 0, 0.72, 0), UDim2.new(0.44, 0, 0, 30), Color3.fromRGB(50, 120, 200))
+
+local ClearButton = CreateButton("ClearButton", "✗ ОЧИСТИТЬ", UDim2.new(0.51, 0, 0.72, 0), UDim2.new(0.44, 0, 0, 30), Color3.fromRGB(200, 50, 50))
+
+-- Настройки
+local TeleportButton = CreateButton("TeleportButton", "⚡ ТЕЛЕПОРТ: ВКЛ", UDim2.new(0.05, 0, 0.8, 0), UDim2.new(0.44, 0, 0, 30), Color3.fromRGB(100, 50, 200))
+
+local RangeButton = CreateButton("RangeButton", "📏 ДИСТ: 25", UDim2.new(0.51, 0, 0.8, 0), UDim2.new(0.44, 0, 0, 30), Color3.fromRGB(50, 150, 200))
+
+-- Кнопки управления окном
+local CloseButton = CreateButton("CloseBtn", "✖", UDim2.new(0.85, 0, 0.02, 0), UDim2.new(0.12, 0, 0.08, 0), Color3.fromRGB(200, 50, 50))
+
+local MinButton = CreateButton("MinBtn", "–", UDim2.new(0.72, 0, 0.02, 0), UDim2.new(0.12, 0, 0.08, 0), Color3.fromRGB(255, 165, 0))
+
+-- Функция поиска руды
 local function FindClosestOre()
     if not character or not humanoidRootPart then return nil end
     
-    local closestDistance = math.huge
-    local closestOre = nil
-    local myPosition = humanoidRootPart.Position
+    local closest = nil
+    local closestDist = miningRange
+    local myPos = humanoidRootPart.Position
     
-    -- Проверяем черный список
+    -- Очищаем старые записи в черном списке
     local currentTime = tick()
-    for ore, blacklistTime in pairs(blacklistedOres) do
-        if currentTime - blacklistTime > oreBlacklistTime then
+    for ore, time in pairs(blacklistedOres) do
+        if currentTime - time > oreBlacklistTime then
             blacklistedOres[ore] = nil
         end
     end
     
-    -- Ищем все части в рабочем пространстве
-    for _, part in pairs(Workspace:GetDescendants()) do
-        if part:IsA("BasePart") and part.Name then
-            -- Проверяем, выбрана ли эта руда
-            if selectedOres[part.Name] and not blacklistedOres[part] then
-                -- Проверяем дистанцию
-                local distance = (myPosition - part.Position).Magnitude
-                if distance < miningRange and distance < closestDistance then
-                    closestDistance = distance
-                    closestOre = part
+    -- Ищем руды
+    for _, obj in pairs(Workspace:GetDescendants()) do
+        if obj:IsA("BasePart") or obj:IsA("MeshPart") or obj:IsA("UnionOperation") then
+            if obj.Name then
+                local isSelectedOre = false
+                
+                -- Проверяем все выбранные руды
+                for oreName in pairs(selectedOres) do
+                    if string.find(obj.Name:lower(), oreName:lower()) then
+                        isSelectedOre = true
+                        break
+                    end
+                end
+                
+                if isSelectedOre and not blacklistedOres[obj] then
+                    local dist = (myPos - obj.Position).Magnitude
+                    if dist < closestDist then
+                        closestDist = dist
+                        closest = obj
+                    end
                 end
             end
         end
     end
     
-    return closestOre
+    return closest
 end
 
--- Функция добычи руды
+-- Функция добычи
 local function MineOre(ore)
-    if not character or not ore then return end
+    if not character or not ore then return false end
     
-    -- Сохраняем позицию руды
-    lastOrePosition = ore.Position
+    StatusLabel.Text = "Статус: Добываем " .. ore.Name
     
-    -- Если включен телепорт - телепортируемся к руде
+    -- Телепортируемся или идем к руде
     if teleportToOres then
-        humanoidRootPart.CFrame = CFrame.new(ore.Position + Vector3.new(0, 3, 0))
-        wait(0.1)
+        humanoidRootPart.CFrame = CFrame.new(ore.Position + Vector3.new(0, 3, 2))
     else
-        -- Иначе идем к руде
         humanoid:MoveTo(ore.Position)
+        
+        -- Ждем пока подойдем
         local startTime = tick()
-        while (humanoidRootPart.Position - ore.Position).Magnitude > 5 and tick() - startTime < 5 do
+        while (humanoidRootPart.Position - ore.Position).Magnitude > 5 do
+            if tick() - startTime > 5 then break end
             wait(0.1)
         end
     end
     
-    -- Пытаемся добыть руду
-    -- Вариант 1: Клик по руде (если есть ClickDetector)
-    local clickDetector = ore:FindFirstChild("ClickDetector")
+    wait(0.5)
+    
+    -- Пытаемся кликнуть по руде
+    local clickDetector = ore:FindFirstChildOfClass("ClickDetector")
     if clickDetector then
         for i = 1, 3 do
             fireclickdetector(clickDetector)
-            wait(miningSpeed)
+            wait(0.5)
         end
+    else
+        -- Имитируем удар по руде
+        humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+        wait(0.2)
     end
     
-    -- Вариант 2: Использование инструмента
-    local tool = character:FindFirstChildOfClass("Tool")
-    if tool then
-        -- Активируем инструмент
-        tool:Activate()
-        wait(0.5)
-        tool:Deactivate()
-    end
-    
-    -- Вариант 3: Просто стоим рядом (для автоматической добычи)
-    wait(miningSpeed * 2)
-    
-    -- Проверяем, исчезла ли руда
+    -- Проверяем, добыта ли руда
     if not ore.Parent then
-        -- Руда добыта, добавляем в черный список на время
+        -- Руда добыта, добавляем в черный список
         blacklistedOres[ore] = tick()
+        return true
     end
+    
+    return false
 end
 
--- Основной цикл фарма
+-- Основной цикл
 local miningConnection = nil
 local function StartMining()
-    if miningConnection then return end
+    if miningEnabled then return end
     
     miningEnabled = true
-    StartButton.Text = "⏹️ ОСТАНОВИТЬ ФАРМ"
+    StartButton.Text = "⏹️ ОСТАНОВИТЬ"
     StartButton.BackgroundColor3 = Color3.fromRGB(180, 0, 0)
-    StatusLabel.Text = "Статус: Фармим..."
+    StatusLabel.Text = "Статус: Поиск руд..."
     
     miningConnection = RunService.Heartbeat:Connect(function()
         if not miningEnabled or not character then return end
         
         -- Ищем ближайшую руду
-        closestOre = FindClosestOre()
+        local ore = FindClosestOre()
         
-        if closestOre then
-            StatusLabel.Text = string.format("Статус: Добываем %s...", closestOre.Name)
-            MineOre(closestOre)
+        if ore then
+            closestOre = ore
+            MineOre(ore)
         else
-            StatusLabel.Text = "Статус: Ищем руды..."
+            StatusLabel.Text = "Статус: Руд не найдено"
             
-            -- Если есть последняя позиция руды, двигаемся к ней
+            -- Если есть последняя позиция, идем туда
             if lastOrePosition then
                 if teleportToOres then
                     humanoidRootPart.CFrame = CFrame.new(lastOrePosition)
                 else
                     humanoid:MoveTo(lastOrePosition)
                 end
-                wait(1)
-            else
-                -- Ищем любую руду в большем радиусе
-                miningRange = 100
-                closestOre = FindClosestOre()
-                miningRange = 25
-                
-                if closestOre then
-                    StatusLabel.Text = string.format("Статус: Нашли %s, идем...", closestOre.Name)
-                    MineOre(closestOre)
-                end
             end
+            
+            wait(1)
         end
-        
-        -- Небольшая задержка между проверками
-        wait(0.5)
     end)
 end
 
 local function StopMining()
     miningEnabled = false
+    
     if miningConnection then
         miningConnection:Disconnect()
         miningConnection = nil
@@ -409,81 +416,76 @@ end
 
 -- Обработчики кнопок
 StartButton.MouseButton1Click:Connect(function()
+    print("Кнопка Старт нажата")
+    
+    -- Проверяем выбраны ли руды
+    local hasOres = false
+    for _ in pairs(selectedOres) do
+        hasOres = true
+        break
+    end
+    
+    if not hasOres then
+        StatusLabel.Text = "Ошибка: Выберите руды!"
+        wait(2)
+        StatusLabel.Text = "Статус: Ожидание"
+        return
+    end
+    
     if miningEnabled then
         StopMining()
     else
-        -- Проверяем, выбраны ли руды
-        local hasSelectedOres = false
-        for _ in pairs(selectedOres) do
-            hasSelectedOres = true
-            break
-        end
-        
-        if not hasSelectedOres then
-            StarterGui:SetCore("SendNotification", {
-                Title = "Ошибка",
-                Text = "Выберите хотя бы одну руду для фарма!",
-                Duration = 3,
-                Icon = "rbxassetid://4483345998"
-            })
-            return
-        end
-        
         StartMining()
     end
 end)
 
 SelectAllButton.MouseButton1Click:Connect(function()
-    -- Выбираем все руды
+    print("Выбрать все нажато")
+    
     for oreName, checkbox in pairs(oreCheckboxes) do
         selectedOres[oreName] = true
         checkbox.Text = "✓ " .. oreName
         checkbox.BackgroundColor3 = Color3.fromRGB(80, 120, 80)
     end
+    
+    StatusLabel.Text = "Все руды выбраны"
+    wait(1)
+    StatusLabel.Text = "Статус: Готов"
 end)
 
-ClearSelectionButton.MouseButton1Click:Connect(function()
-    -- Очищаем выбор
+ClearButton.MouseButton1Click:Connect(function()
+    print("Очистить нажато")
+    
     selectedOres = {}
     for oreName, checkbox in pairs(oreCheckboxes) do
         checkbox.Text = "□ " .. oreName
         checkbox.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
     end
+    
+    StatusLabel.Text = "Выбор очищен"
+    wait(1)
+    StatusLabel.Text = "Статус: Готов"
 end)
 
-TeleportToggle.MouseButton1Click:Connect(function()
+TeleportButton.MouseButton1Click:Connect(function()
     teleportToOres = not teleportToOres
+    
     if teleportToOres then
-        TeleportToggle.Text = "⚡ ТЕЛЕПОРТ: ВКЛ"
-        TeleportToggle.BackgroundColor3 = Color3.fromRGB(100, 50, 200)
+        TeleportButton.Text = "⚡ ТЕЛЕПОРТ: ВКЛ"
+        TeleportButton.BackgroundColor3 = Color3.fromRGB(100, 50, 200)
     else
-        TeleportToggle.Text = "🚶 ПЕШКОМ: ВКЛ"
-        TeleportToggle.BackgroundColor3 = Color3.fromRGB(50, 100, 200)
+        TeleportButton.Text = "🚶 ПЕШКОМ: ВКЛ"
+        TeleportButton.BackgroundColor3 = Color3.fromRGB(50, 100, 200)
     end
 end)
 
-IncreaseRangeButton.MouseButton1Click:Connect(function()
-    miningRange = math.min(100, miningRange + 5)
-    RangeDisplay.Text = "ДИСТАНЦИЯ: " .. miningRange
-end)
-
-DecreaseRangeButton.MouseButton1Click:Connect(function()
-    miningRange = math.max(10, miningRange - 5)
-    RangeDisplay.Text = "ДИСТАНЦИЯ: " .. miningRange
-end)
-
-BlacklistButton.MouseButton1Click:Connect(function()
-    if closestOre then
-        blacklistedOres[closestOre] = tick()
-        StatusLabel.Text = "Статус: Руда в черном списке"
-        closestOre = nil
-        
-        StarterGui:SetCore("SendNotification", {
-            Title = "Черный список",
-            Text = "Текущая руда добавлена в черный список",
-            Duration = 3
-        })
+RangeButton.MouseButton1Click:Connect(function()
+    miningRange = miningRange + 10
+    if miningRange > 100 then
+        miningRange = 10
     end
+    
+    RangeButton.Text = "📏 ДИСТ: " .. miningRange
 end)
 
 CloseButton.MouseButton1Click:Connect(function()
@@ -496,15 +498,40 @@ MinButton.MouseButton1Click:Connect(function()
     MinButton.Text = MainFrame.Visible and "–" or "+"
 end)
 
--- Функция для ручного добавления руд
-local function AddCustomOre()
-    -- Можно добавить через текстовое поле, но для простоты добавим кнопку
-    -- которая будет выбирать руду, на которую смотрит игрок
-    StarterGui:SetCore("SendNotification", {
-        Title = "Добавление руды",
-        Text = "Посмотрите на руду и нажмите B для добавления",
-        Duration = 5
-    })
+-- Функция для ручного добавления руды
+local function AddCurrentOre()
+    if not character then return end
+    
+    local camera = Workspace.CurrentCamera
+    local mouse = player:GetMouse()
+    
+    -- Луч из камеры
+    local rayOrigin = camera.CFrame.Position
+    local rayDirection = (mouse.Hit.Position - rayOrigin).Unit * 100
+    local raycastResult = Workspace:Raycast(rayOrigin, rayDirection)
+    
+    if raycastResult then
+        local hitPart = raycastResult.Instance
+        local oreName = hitPart.Name
+        
+        -- Добавляем в список если еще нет
+        if not oreCheckboxes[oreName] then
+            local newIndex = #oreNames + 1
+            oreNames[newIndex] = oreName
+            CreateOreCheckbox(oreName, newIndex)
+        end
+        
+        -- Выбираем руду
+        selectedOres[oreName] = true
+        if oreCheckboxes[oreName] then
+            oreCheckboxes[oreName].Text = "✓ " .. oreName
+            oreCheckboxes[oreName].BackgroundColor3 = Color3.fromRGB(80, 120, 80)
+        end
+        
+        StatusLabel.Text = "Добавлена руда: " .. oreName
+        wait(2)
+        StatusLabel.Text = "Статус: Готов"
+    end
 end
 
 -- Горячие клавиши
@@ -517,122 +544,82 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
         else
             StartMining()
         end
-    elseif input.KeyCode == Enum.KeyCode.B then
-        -- Ручное добавление руды
-        local ray = Workspace.CurrentCamera:ScreenPointToRay(Vector2.new(0.5, 0.5))
-        local result = Workspace:Raycast(ray.Origin, ray.Direction * 100)
-        
-        if result and result.Instance then
-            local ore = result.Instance
-            if not oreCheckboxes[ore.Name] then
-                CreateOreCheckbox(ore.Name)
-            end
-            selectedOres[ore.Name] = true
-            oreCheckboxes[ore.Name].Text = "✓ " .. ore.Name
-            oreCheckboxes[ore.Name].BackgroundColor3 = Color3.fromRGB(80, 120, 80)
-            
-            StarterGui:SetCore("SendNotification", {
-                Title = "Руда добавлена",
-                Text = "Добавлена руда: " .. ore.Name,
-                Duration = 3
-            })
-        end
-    elseif input.KeyCode == Enum.KeyCode.N then
-        -- Добавить текущую руду в черный список
+    elseif input.KeyCode == Enum.KeyCode.G then
+        -- Добавить текущую руду
+        AddCurrentOre()
+    elseif input.KeyCode == Enum.KeyCode.H then
+        -- Черный список текущей руды
         if closestOre then
             blacklistedOres[closestOre] = tick()
+            StatusLabel.Text = "Руда в черном списке"
+            closestOre = nil
+            wait(2)
+            StatusLabel.Text = "Статус: Поиск..."
         end
     end
 end)
 
--- Автоматическое обнаружение новых руд
-local oreDetectionConnection = nil
-local function StartOreDetection()
-    if oreDetectionConnection then return end
-    
-    oreDetectionConnection = RunService.Heartbeat:Connect(function()
-        -- Сканируем все части в радиусе 50 studs
-        if not character or not humanoidRootPart then return end
-        
-        local myPosition = humanoidRootPart.Position
-        
-        for _, part in pairs(Workspace:GetDescendants()) do
-            if part:IsA("BasePart") and part.Name then
-                local distance = (myPosition - part.Position).Magnitude
-                
-                -- Если часть близко и ее нет в списке, предлагаем добавить
-                if distance < 50 and not oreCheckboxes[part.Name] and not string.find(part.Name:lower(), "base") then
-                    -- Проверяем, похоже ли имя на руду
-                    local lowerName = part.Name:lower()
-                    if string.find(lowerName, "ore") or string.find(lowerName, "stone") or 
-                       string.find(lowerName, "crystal") or string.find(lowerName, "gem") or
-                       string.find(lowerName, "mineral") then
-                        
-                        -- Предлагаем добавить
-                        if not oreCheckboxes[part.Name] then
-                            CreateOreCheckbox(part.Name)
-                            
-                            StarterGui:SetCore("SendNotification", {
-                                Title = "Обнаружена новая руда",
-                                Text = "Добавлена: " .. part.Name,
-                                Duration = 4
-                            })
-                        end
-                    end
-                end
-            end
-        end
-    end)
-end
-
--- Запускаем обнаружение руд
-StartOreDetection()
-
--- Обработка смерти
-humanoid.Died:Connect(function()
-    StopMining()
-end)
-
--- Обработка респавна
+-- Обновляем позицию персонажа при респавне
 player.CharacterAdded:Connect(function(newChar)
     character = newChar
     humanoid = newChar:WaitForChild("Humanoid")
     humanoidRootPart = newChar:WaitForChild("HumanoidRootPart")
     
-    wait(2)
     if miningEnabled then
+        wait(2)
         StartMining()
     end
 end)
 
--- Уведомление о загрузке
+-- Обработка смерти
+if humanoid then
+    humanoid.Died:Connect(function()
+        StopMining()
+    end)
+end
+
+-- Информационное сообщение
 wait(2)
 StarterGui:SetCore("SendNotification", {
-    Title = "Forge Mining Bot",
-    Text = "AFK фарм активирован!\nF - Старт/Стоп, B - Добавить руду\nN - Черный список текущей руды",
-    Duration = 7
+    Title = "⚒️ Forge Mining Bot",
+    Text = "Бот успешно загружен!\nF - Старт/Стоп\nG - Добавить руду\nH - Черный список",
+    Duration = 5,
+    Icon = "rbxassetid://4483345998"
 })
 
-print("✅ Forge Mining Bot успешно загружен!")
-print("📋 Инструкция:")
-print("   1. Выберите руды для фарма в списке")
-print("   2. Нажмите 'Начать фарм' или клавишу F")
-print("   3. Бот автоматически найдет и начнет добывать выбранные руды")
-print("   4. Нажмите B, глядя на руду, чтобы добавить ее в список")
-print("   5. Нажмите N, чтобы добавить текущую руду в черный список")
+-- Выводим инструкцию в консоль
+print("====================================")
+print("⚒️ FORGE MINING BOT v2.0")
+print("====================================")
+print("Инструкция:")
+print("1. Выберите руды для фарма (галочки)")
+print("2. Нажмите 'Начать фарм' или F")
+print("3. Для добавления руды: смотрите на нее и нажмите G")
+print("4. Для черного списка: нажмите H когда руда выбрана")
+print("====================================")
+print("Статус: Готов к работе")
+print("Выбранные руды: 0")
+print("Дистанция поиска: " .. miningRange)
+print("Режим: " .. (teleportToOres and "Телепорт" or "Пешком"))
+print("====================================")
 
--- Функция для тестирования
-local function TestMining()
-    print("🔍 Тестирование поиска руд...")
+-- Функция для проверки работы
+local function TestBot()
+    print("🧪 Тестирование...")
+    print("Персонаж:", character and "✓" or "✗")
+    print("Гуи:", ScreenGui and "✓" or "✗")
+    print("Кнопки:", StartButton and "✓" or "✗")
+    
+    -- Тестовый поиск руды
     local testOre = FindClosestOre()
+    print("Найдено руд:", testOre and "✓" or "✗")
+    
     if testOre then
-        print("✅ Найдена руда: " .. testOre.Name)
-        print("📍 Позиция: " .. tostring(testOre.Position))
-    else
-        print("❌ Руды не найдены")
+        print("Пример руды:", testOre.Name)
+        print("Позиция:", testOre.Position)
     end
 end
 
--- Тестирование при запуске
+-- Запускаем тест через 3 секунды
 wait(3)
-TestMining()
+TestBot()
